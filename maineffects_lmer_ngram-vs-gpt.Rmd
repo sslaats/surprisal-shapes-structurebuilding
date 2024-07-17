@@ -1,0 +1,89 @@
+---
+title: "maineffects_lmer"
+author: "Sophie Slaats"
+date: "2023-07-04"
+output: html_document
+---
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = FALSE)
+library(lme4)
+library(lmerTest)
+library(effects)
+
+```
+
+``` {r load, echo=TRUE}
+# load data 
+data_GPT <- read.csv('r_data_wholebrain_gpt.csv', header = TRUE)
+
+# models
+data_GPT$model <- factor(data_GPT$model)
+data_GPT$entropy <- as.factor(data_GPT$entropy)
+data_GPT$surprisal <- as.factor(data_GPT$surprisal)
+data_GPT$topdown <- as.factor(data_GPT$topdown)
+data_GPT$bottomup <- as.factor(data_GPT$bottomup)
+data_GPT$leftcorner <- as.factor(data_GPT$leftcorner)
+data_GPT$lm <- 'GPT'
+
+# load data 
+data_ngram <- read.csv('r_data_wholebrain_ngram.csv', header = TRUE)
+
+# models
+data_ngram$model <- factor(data_ngram$model)
+data_ngram$entropy = as.factor(data_ngram$entropy)
+data_ngram$surprisal = as.factor(data_ngram$surprisal)
+data_ngram$topdown = as.factor(data_ngram$topdown)
+data_ngram$bottomup = as.factor(data_ngram$bottomup)
+data_ngram$leftcorner = as.factor(data_ngram$leftcorner)
+data_ngram$lm <- 'ngram'
+
+data <- rbind(data_GPT, data_ngram)
+data$lm <- as.factor(data$lm)
+```
+
+```{r remove_syntax, echo=TRUE}
+data <- subset(data, topdown == 0 & bottomup == 0 & leftcorner == 0)
+``` 
+
+# Model comparison: interactions vs main effects
+
+```{r model_comp, echo=TRUE}
+# data prepared - lets run a full model
+full_model_su_en <- lmer(r_values ~ lm * entropy * surprisal + (1 + entropy * surprisal | subject), data=data, REML = TRUE)
+full_model_lm_en <- lmer(r_values ~ lm * entropy * surprisal + (1 + lm * entropy | subject), data=data, REML = TRUE)
+full_model_lm_su <- lmer(r_values ~ lm * entropy * surprisal + (1 + lm * surprisal | subject), data=data, REML = TRUE)
+
+comparison1 <- step(full_model_su_en, reduce.fixed=TRUE, reduce.random=TRUE)
+comparison2 <- step(full_model_lm_en, reduce.fixed=TRUE, reduce.random=TRUE)
+comparison3 <- step(full_model_lm_su, reduce.fixed=TRUE, reduce.random=TRUE)
+
+best_model1 <- get_model(comparison1)
+best_model2 <- get_model(comparison2)
+best_model3 <- get_model(comparison3)
+```
+NO difference so we interpret the simpler model
+
+```{r fullmodel, echo=TRUE}
+AIC(best_model1, best_model2, best_model3)
+summary(best_model3)
+```
+```{r comparison stats, echo=TRUE}
+library(writexl)
+
+write_xlsx(list("en_su_random" = cbind(rownames(as.data.frame(comparison1[1])), as.data.frame(comparison1[1])), 
+                "en_su_fixed" = cbind(rownames(as.data.frame(comparison1[2])), as.data.frame(comparison1[2])),
+                "lm_en_random" = cbind(rownames(as.data.frame(comparison2[1])), as.data.frame(comparison2[1])), 
+                "lm_en_fixed" = cbind(rownames(as.data.frame(comparison2[2])), as.data.frame(comparison2[2])),
+                "lm_su_random" = cbind(rownames(as.data.frame(comparison3[1])), as.data.frame(comparison3[1])), 
+                "lm_su_fixed" = cbind(rownames(as.data.frame(comparison3[2])), as.data.frame(comparison3[2]))),
+                'K:/Project/Project 2 - MEG probabilistic syntax/audiobook/main-effects/wholebrain_modelcomp_ngram-vs-GPT-stats.xlsx')
+
+```
+
+```{r check means to interpret threeway interaction, echo=TRUE}
+library(emmeans)
+
+joint_tests(best_model3, by='lm', adjust='none')
+joint_tests(best_model3, by=c('lm', 'surprisal'))
+```

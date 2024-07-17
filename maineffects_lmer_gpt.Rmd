@@ -1,0 +1,82 @@
+---
+title: "maineffects_lmer_ngram"
+author: "Sophie Slaats"
+date: "2023-07-04"
+output: html_document
+---
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = FALSE)
+library(lme4)
+library(lmerTest)
+library(effects)
+```
+
+``` {r load, echo=TRUE}
+# load data 
+data <- read.csv('r_data_wholebrain_GPT.csv', header = TRUE)
+
+# models
+data$model <- factor(data$model)
+data$entropy = as.factor(data$entropy)
+data$surprisal = as.factor(data$surprisal)
+data$topdown = as.factor(data$topdown)
+data$bottomup = as.factor(data$bottomup)
+data$leftcorner = as.factor(data$leftcorner)
+```
+
+## With Left Corner still in
+# Model comparison: interactions vs main effects
+
+```{r leftcorner, echo=TRUE}
+# data prepared - lets run a full model
+#full_model <- lmer(r_values ~ entropy * surprisal * topdown * bottomup * leftcorner + (1 + topdown * bottomup * leftcorner  | subject), data=data, REML = TRUE)
+#comparison <- step(full_model, reduce.fixed=TRUE, reduce.random=TRUE)
+#best_model = get_model(comparison)
+```
+
+```{r fullmodel, echo=TRUE}
+#summary(best_model)
+```
+
+## Remove Left Corner
+# Model comparison: interactions vs main effects
+
+```{r nolc, echo=TRUE}
+### let's run all of this without left-corner as this is what we analyze in the paper
+data_nolc <- subset(data, leftcorner == "0")
+
+full_model_td_bu_su <- lmer(r_values ~ entropy * surprisal * topdown * bottomup + (1 + topdown * bottomup * surprisal | subject), data=data_nolc,  REML = TRUE)
+full_model_td_bu_en <- lmer(r_values ~ entropy * surprisal * topdown * bottomup + (1 + topdown * bottomup * entropy | subject), data=data_nolc,  REML = TRUE)
+full_model_td_su_en <- lmer(r_values ~ entropy * surprisal * topdown * bottomup + (1 + topdown * surprisal * entropy | subject), data=data_nolc,  REML = TRUE)
+full_model_bu_su_en <- lmer(r_values ~ entropy * surprisal * topdown * bottomup + (1 + bottomup * surprisal * entropy  | subject), data=data_nolc,  REML = TRUE)
+
+comparison1 <- step(full_model_td_bu_su, reduce.fixed=TRUE, reduce.random=TRUE)
+comparison2 <- step(full_model_td_bu_en, reduce.fixed=TRUE, reduce.random=TRUE)
+comparison3 <- step(full_model_td_su_en, reduce.fixed=TRUE, reduce.random=TRUE)
+comparison4 <- step(full_model_bu_su_en, reduce.fixed=TRUE, reduce.random=TRUE)
+
+best_model1 <- get_model(comparison1)
+best_model2 <- get_model(comparison2)
+best_model3 <- get_model(comparison3)
+best_model4 <- get_model(comparison4)
+```
+
+
+```{r summary best model, echo=TRUE}
+AIC(best_model1, best_model2, best_model3, best_model4)
+summary(best_model1)
+```
+````{r saving modelcomparison, echo=TRUE}
+library(writexl)
+
+write_xlsx(list("td_bu_su_random" = cbind(rownames(as.data.frame(comparison1[1])), as.data.frame(comparison1[1])), 
+                "td_bu_su_fixed" = cbind(rownames(as.data.frame(comparison1[2])), as.data.frame(comparison1[2])),
+                "td_bu_en_random" = cbind(rownames(as.data.frame(comparison2[1])), as.data.frame(comparison2[1])), 
+                "td_bu_en_fixed" = cbind(rownames(as.data.frame(comparison2[2])), as.data.frame(comparison2[2])),
+                "td_su_en_random" = cbind(rownames(as.data.frame(comparison3[1])), as.data.frame(comparison3[1])), 
+                "td_su_en_fixed" = cbind(rownames(as.data.frame(comparison3[2])), as.data.frame(comparison3[2])),
+                "bu_su_en_random" = cbind(rownames(as.data.frame(comparison4[1])), as.data.frame(comparison4[1])), 
+                "bu_su_en_fixed" = cbind(rownames(as.data.frame(comparison4[2])), as.data.frame(comparison4[2]))),
+                'K:/Project/Project 2 - MEG probabilistic syntax/audiobook/main-effects/wholebrain_modelcomp_stats_GPT.xlsx')
+```
